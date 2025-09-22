@@ -1,7 +1,15 @@
 // Validation utilities
+const ALLOWED_EMAIL_DOMAINS = [
+  'gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 
+  'rediffmail.com', 'protonmail.com', 'icloud.com', 'aol.com'
+];
+
 export const validateEmail = (email) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
+  if (!emailRegex.test(email)) return false;
+  
+  const domain = email.split('@')[1].toLowerCase();
+  return ALLOWED_EMAIL_DOMAINS.includes(domain);
 };
 
 export const validatePassword = (password) => {
@@ -12,16 +20,26 @@ export const validateName = (name) => {
   return name.trim().length >= 2;
 };
 
+export const validateIndianPhone = (phone) => {
+  // Remove all non-digit characters
+  const cleanPhone = phone.replace(/\D/g, '');
+  // Check if it's exactly 10 digits and starts with 6-9
+  return /^[6-9]\d{9}$/.test(cleanPhone);
+};
+
 export const validatePhone = (phone) => {
-  const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
-  return phoneRegex.test(phone.replace(/\s/g, ''));
+  return validateIndianPhone(phone);
 };
 
 export const validateTherapyForm = (formData) => {
   const errors = {};
   
-  if (!formData.type) {
-    errors.type = 'Therapy type is required';
+  if (!formData.therapyTypeId) {
+    errors.therapyTypeId = 'Therapy type is required';
+  }
+  
+  if (!formData.clinicId) {
+    errors.clinicId = 'Clinic is required';
   }
   
   if (!formData.date) {
@@ -38,10 +56,6 @@ export const validateTherapyForm = (formData) => {
   
   if (!formData.time) {
     errors.time = 'Time is required';
-  }
-  
-  if (!formData.notes || formData.notes.trim().length < 10) {
-    errors.notes = 'Notes must be at least 10 characters long';
   }
   
   return {

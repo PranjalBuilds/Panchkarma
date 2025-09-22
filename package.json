@@ -17,7 +17,13 @@
     "@emailjs/browser": "^4.3.2",
     "lucide-react": "^0.294.0",
     "clsx": "^2.0.0",
-    "tailwind-merge": "^2.0.0"
+    "tailwind-merge": "^2.0.0",
+    "zustand": "^4.4.7",
+    "recharts": "^2.8.0",
+    "framer-motion": "^10.16.16",
+    "react-hook-form": "^7.48.2",
+    "@hookform/resolvers": "^3.3.2",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/react": "^18.2.37",

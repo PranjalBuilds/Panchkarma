@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { storage } from '../utils/storage';
+import { useStore } from '../store/useStore';
 import toast from 'react-hot-toast';
 
 const AuthContext = createContext();
@@ -15,6 +16,7 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { setUser: setStoreUser, clearUser } = useStore();
 
   useEffect(() => {
     // Check for existing session on app load
@@ -23,25 +25,29 @@ export const AuthProvider = ({ children }) => {
     
     if (session && userData && new Date(session.expiresAt) > new Date()) {
       setUser(userData);
+      setStoreUser(userData);
     } else {
       // Clear expired session
       storage.removeSession();
       storage.removeUser();
+      clearUser();
     }
     
     setIsLoading(false);
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (email, password, role) => {
     try {
-      const userData = storage.getUser();
+      // Check all users for matching credentials
+      const allUsers = storage.getAllUsers();
+      const userData = allUsers.find(user => 
+        user.email === email && 
+        user.password === password && 
+        user.role === role
+      );
       
       if (!userData) {
-        throw new Error('No user found. Please sign up first.');
-      }
-      
-      if (userData.email !== email || userData.password !== password) {
-        throw new Error('Invalid email or password');
+        throw new Error('Invalid email, password, or role. Please check your credentials.');
       }
       
       // Create session
@@ -52,6 +58,7 @@ export const AuthProvider = ({ children }) => {
       
       storage.setSession(session);
       setUser(userData);
+      setStoreUser(userData);
       
       toast.success('Welcome back!');
       return { success: true };
@@ -63,18 +70,22 @@ export const AuthProvider = ({ children }) => {
 
   const signup = async (userData) => {
     try {
-      // Check if user already exists
-      const existingUser = storage.getUser();
-      if (existingUser && existingUser.email === userData.email) {
+      // Check if user already exists in all users
+      const allUsers = storage.getAllUsers();
+      const existingUser = allUsers.find(user => user.email === userData.email);
+      if (existingUser) {
         throw new Error('User already exists with this email');
       }
       
       const newUser = {
         id: Date.now().toString(),
+        role: userData.role || 'patient', // Default to patient role
         ...userData,
         createdAt: new Date().toISOString()
       };
       
+      // Add to all users and set as current user
+      storage.addUser(newUser);
       storage.setUser(newUser);
       
       // Create session
@@ -85,6 +96,7 @@ export const AuthProvider = ({ children }) => {
       
       storage.setSession(session);
       setUser(newUser);
+      setStoreUser(newUser);
       
       toast.success('Account created successfully!');
       return { success: true };
@@ -98,6 +110,7 @@ export const AuthProvider = ({ children }) => {
     storage.removeSession();
     storage.removeUser();
     setUser(null);
+    clearUser();
     toast.success('Logged out successfully');
   };
 
@@ -105,7 +118,9 @@ export const AuthProvider = ({ children }) => {
     try {
       const updatedUser = { ...user, ...updates };
       storage.setUser(updatedUser);
+      storage.updateUser(user.id, updates);
       setUser(updatedUser);
+      setStoreUser(updatedUser);
       toast.success('Profile updated successfully');
       return { success: true };
     } catch (error) {

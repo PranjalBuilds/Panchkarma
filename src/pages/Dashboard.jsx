@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useStore } from '../store/useStore';
 import { storage } from '../utils/storage';
 import { THERAPY_TYPES } from '../utils/constants';
 import { 
@@ -10,17 +11,22 @@ import {
   TrendingUp, 
   Users, 
   Activity,
-  ArrowRight
+  ArrowRight,
+  Star
 } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const { bookings, feedbacks } = useStore();
   const [therapies, setTherapies] = useState([]);
   const [upcomingTherapies, setUpcomingTherapies] = useState([]);
+  const [progressData, setProgressData] = useState([]);
   const [stats, setStats] = useState({
     totalTherapies: 0,
     upcomingCount: 0,
-    completedCount: 0
+    completedCount: 0,
+    averageRating: 0
   });
 
   useEffect(() => {
@@ -44,12 +50,35 @@ const Dashboard = () => {
       return therapyDate < now;
     });
     
+    // Calculate average rating from feedbacks
+    const averageRating = feedbacks.length > 0 
+      ? feedbacks.reduce((sum, feedback) => sum + feedback.rating, 0) / feedbacks.length 
+      : 0;
+
     setStats({
       totalTherapies: allTherapies.length,
       upcomingCount: upcoming.length,
-      completedCount: completed.length
+      completedCount: completed.length,
+      averageRating: Math.round(averageRating * 10) / 10
     });
-  }, []);
+
+    // Generate progress data for the last 7 days
+    const progressData = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dayTherapies = allTherapies.filter(therapy => {
+        const therapyDate = new Date(therapy.date);
+        return therapyDate.toDateString() === date.toDateString();
+      });
+      progressData.push({
+        date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        therapies: dayTherapies.length,
+        completed: dayTherapies.filter(t => new Date(`${t.date}T${t.time}`) < new Date()).length
+      });
+    }
+    setProgressData(progressData);
+  }, [feedbacks]);
 
   const getTherapyTypeLabel = (type) => {
     const therapyType = THERAPY_TYPES.find(t => t.value === type);
@@ -89,7 +118,7 @@ const Dashboard = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
@@ -124,6 +153,49 @@ const Dashboard = () => {
               <TrendingUp className="text-earth-600" size={24} />
             </div>
           </div>
+        </div>
+
+        <div className="card">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Avg Rating</p>
+              <p className="text-3xl font-bold text-warm-600">{stats.averageRating || 'N/A'}</p>
+            </div>
+            <div className="w-12 h-12 bg-warm-100 rounded-lg flex items-center justify-center">
+              <Star className="text-warm-600" size={24} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Progress Tracking Chart */}
+      <div className="card">
+        <h2 className="text-xl font-serif font-semibold text-gray-900 dark:text-gray-100 mb-6">
+          Therapy Progress (Last 7 Days)
+        </h2>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={progressData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip />
+              <Line 
+                type="monotone" 
+                dataKey="therapies" 
+                stroke="#3a9d3a" 
+                strokeWidth={2}
+                name="Scheduled"
+              />
+              <Line 
+                type="monotone" 
+                dataKey="completed" 
+                stroke="#b19d7f" 
+                strokeWidth={2}
+                name="Completed"
+              />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       </div>
 

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { storage } from '../utils/storage';
+import { useStore } from '../store/useStore';
 import { validateTherapyForm } from '../utils/validation';
-import { THERAPY_TYPES, TIME_SLOTS } from '../utils/constants';
+import { TIME_SLOTS } from '../utils/constants';
 import { 
   Plus, 
   Calendar, 
@@ -9,34 +10,56 @@ import {
   Trash2, 
   Edit3,
   Filter,
-  Search
+  Search,
+  CreditCard,
+  MapPin,
+  User
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import PaymentModal from '../components/PaymentModal';
 
 const Therapies = () => {
   const [therapies, setTherapies] = useState([]);
+  const [therapyTypes, setTherapyTypes] = useState([]);
+  const [doctors, setDoctors] = useState([]);
+  const [clinics, setClinics] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [editingTherapy, setEditingTherapy] = useState(null);
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedTherapy, setSelectedTherapy] = useState(null);
   const [formData, setFormData] = useState({
-    type: '',
+    therapyTypeId: '',
+    clinicId: '',
+    doctorId: '',
     date: '',
     time: '',
-    duration: '60',
-    notes: '',
-    practitioner: ''
+    notes: ''
   });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
+  const { addBooking, addPayment } = useStore();
 
   useEffect(() => {
     loadTherapies();
+    loadAdminData();
   }, []);
 
   const loadTherapies = () => {
     const allTherapies = storage.getTherapies();
     setTherapies(allTherapies);
+  };
+
+  const loadAdminData = () => {
+    // Load admin-managed data
+    const therapyTypes = storage.getTherapyTypes();
+    const doctors = storage.getDoctors();
+    const clinics = storage.getClinics();
+    
+    setTherapyTypes(therapyTypes);
+    setDoctors(doctors);
+    setClinics(clinics);
   };
 
   const handleChange = (e) => {
@@ -66,38 +89,53 @@ const Therapies = () => {
     
     setIsLoading(true);
     
-    try {
-      if (editingTherapy) {
-        // Update existing therapy
-        const updated = storage.updateTherapy(editingTherapy.id, formData);
-        if (updated) {
-          toast.success('Therapy updated successfully');
+      try {
+        if (editingTherapy) {
+          // Update existing therapy
+          const updated = storage.updateTherapy(editingTherapy.id, formData);
+          if (updated) {
+            toast.success('Therapy updated successfully');
+          } else {
+            toast.error('Failed to update therapy');
+          }
         } else {
-          toast.error('Failed to update therapy');
+          // Get therapy type details for pricing
+          const selectedTherapyType = therapyTypes.find(t => t.id === formData.therapyTypeId);
+          const selectedClinic = clinics.find(c => c.id === formData.clinicId);
+          const selectedDoctor = doctors.find(d => d.id === formData.doctorId);
+          
+          const therapyData = {
+            ...formData,
+            type: selectedTherapyType?.name || '',
+            basePrice: selectedTherapyType?.basePrice || 0,
+            duration: selectedTherapyType?.duration || 60,
+            clinicName: selectedClinic?.name || '',
+            doctorName: selectedDoctor?.name || '',
+            userId: 'current-user' // In real app, get from auth context
+          };
+          
+          const newTherapy = storage.addTherapy(therapyData);
+          setSelectedTherapy(newTherapy);
+          setShowPaymentModal(true);
         }
-      } else {
-        // Add new therapy
-        storage.addTherapy(formData);
-        toast.success('Therapy scheduled successfully');
+        
+        loadTherapies();
+        resetForm();
+      } catch (error) {
+        toast.error('An error occurred');
       }
-      
-      loadTherapies();
-      resetForm();
-    } catch (error) {
-      toast.error('An error occurred');
-    }
     
     setIsLoading(false);
   };
 
   const resetForm = () => {
     setFormData({
-      type: '',
+      therapyTypeId: '',
+      clinicId: '',
+      doctorId: '',
       date: '',
       time: '',
-      duration: '60',
-      notes: '',
-      practitioner: ''
+      notes: ''
     });
     setErrors({});
     setShowForm(false);
@@ -191,6 +229,32 @@ const Therapies = () => {
     });
   };
 
+  const handlePaymentSuccess = (paymentData) => {
+    // Add booking to store
+    addBooking({
+      id: paymentData.id,
+      userId: 'current-user', // In real app, get from auth context
+      therapyId: paymentData.id,
+      ...paymentData,
+      status: 'confirmed',
+      paymentId: paymentData.paymentId
+    });
+
+    // Add payment record
+    addPayment({
+      id: paymentData.paymentId,
+      bookingId: paymentData.id,
+      amount: paymentData.amount,
+      status: 'completed',
+      method: 'card',
+      createdAt: new Date().toISOString()
+    });
+
+    toast.success('Therapy booked and payment completed successfully!');
+    setShowPaymentModal(false);
+    setSelectedTherapy(null);
+  };
+
   const filteredTherapies = getFilteredTherapies();
 
   return (
@@ -252,35 +316,60 @@ const Therapies = () => {
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="label">Therapy Type</label>
+                    <label className="label">Therapy Type *</label>
                     <select
-                      name="type"
-                      value={formData.type}
+                      name="therapyTypeId"
+                      value={formData.therapyTypeId}
                       onChange={handleChange}
-                      className={`input-field ${errors.type ? 'border-red-500' : ''}`}
+                      className={`input-field ${errors.therapyTypeId ? 'border-red-500' : ''}`}
                     >
                       <option value="">Select therapy type</option>
-                      {THERAPY_TYPES.map((therapy) => (
-                        <option key={therapy.value} value={therapy.value}>
-                          {therapy.label}
+                      {therapyTypes.map((therapy) => (
+                        <option key={therapy.id} value={therapy.id}>
+                          {therapy.name} - ₹{therapy.basePrice}
                         </option>
                       ))}
                     </select>
-                    {errors.type && (
-                      <p className="text-red-500 text-sm mt-1">{errors.type}</p>
+                    {errors.therapyTypeId && (
+                      <p className="text-red-500 text-sm mt-1">{errors.therapyTypeId}</p>
                     )}
                   </div>
 
                   <div>
-                    <label className="label">Practitioner</label>
-                    <input
-                      type="text"
-                      name="practitioner"
-                      value={formData.practitioner}
+                    <label className="label">Clinic *</label>
+                    <select
+                      name="clinicId"
+                      value={formData.clinicId}
+                      onChange={handleChange}
+                      className={`input-field ${errors.clinicId ? 'border-red-500' : ''}`}
+                    >
+                      <option value="">Select clinic</option>
+                      {clinics.map((clinic) => (
+                        <option key={clinic.id} value={clinic.id}>
+                          {clinic.name} - {clinic.location}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.clinicId && (
+                      <p className="text-red-500 text-sm mt-1">{errors.clinicId}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="label">Doctor</label>
+                    <select
+                      name="doctorId"
+                      value={formData.doctorId}
                       onChange={handleChange}
                       className="input-field"
-                      placeholder="Enter practitioner name"
-                    />
+                    >
+                      <option value="">Select doctor (optional)</option>
+                      {doctors.map((doctor) => (
+                        <option key={doctor.id} value={doctor.id}>
+                          Dr. {doctor.name} - {doctor.specialization}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>
@@ -459,6 +548,14 @@ const Therapies = () => {
           })
         )}
       </div>
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        therapyDetails={selectedTherapy}
+        onSuccess={handlePaymentSuccess}
+      />
     </div>
   );
 };

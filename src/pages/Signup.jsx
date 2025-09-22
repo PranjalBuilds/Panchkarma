@@ -10,7 +10,8 @@ const Signup = () => {
     email: '',
     phone: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    role: 'patient'
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -143,7 +144,7 @@ const Signup = () => {
             <div>
               <label className="label">
                 <Phone className="inline w-4 h-4 mr-2" />
-                Phone Number
+                Phone Number (10-digit Indian)
               </label>
               <input
                 type="tel"
@@ -151,11 +152,24 @@ const Signup = () => {
                 value={formData.phone}
                 onChange={handleChange}
                 className={`input-field ${errors.phone ? 'border-red-500' : ''}`}
-                placeholder="Enter your phone number"
+                placeholder="Enter your 10-digit Indian phone number"
               />
               {errors.phone && (
                 <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
               )}
+            </div>
+
+            <div>
+              <label className="label">Account Type</label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                className="input-field"
+              >
+                <option value="patient">Patient</option>
+                <option value="admin">Admin</option>
+              </select>
             </div>
 
             <div>

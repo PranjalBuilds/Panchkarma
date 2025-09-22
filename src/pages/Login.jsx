@@ -7,7 +7,8 @@ import { Eye, EyeOff, Mail, Lock, Home } from 'lucide-react';
 const Login = () => {
   const [formData, setFormData] = useState({
     email: '',
-    password: ''
+    password: '',
+    role: 'patient'
   });
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
@@ -56,7 +57,7 @@ const Login = () => {
     if (!validateForm()) return;
     
     setIsLoading(true);
-    const result = await login(formData.email, formData.password);
+    const result = await login(formData.email, formData.password, formData.role);
     setIsLoading(false);
   };
 
@@ -124,6 +125,19 @@ const Login = () => {
               {errors.password && (
                 <p className="text-red-500 text-sm mt-1">{errors.password}</p>
               )}
+            </div>
+
+            <div>
+              <label className="label">Login As</label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                className="input-field"
+              >
+                <option value="patient">Patient</option>
+                <option value="admin">Admin</option>
+              </select>
             </div>
 
             <button
